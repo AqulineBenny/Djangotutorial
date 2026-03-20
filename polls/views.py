@@ -55,3 +55,67 @@ def vote(request, question_id):
         selected_choice.votes = F("votes") + 1
         selected_choice.save()
         return HttpResponseRedirect(reverse("polls:results", args=(question.id,)))
+
+from django.test import TestCase
+from django.http import HttpResponse
+from .tests import QuestionModelTests, PollsURLTests, VoteTransactionTests, PollsLiveServerTests
+import io
+import sys
+
+def run_tests_view(request):
+    """Run all tests and show results in browser"""
+    
+    # Capture output
+    old_stdout = sys.stdout
+    sys.stdout = captured_output = io.StringIO()
+    
+    # Run tests
+    import unittest
+    suite = unittest.TestSuite()
+    
+    # Add all test classes
+    suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(QuestionModelTests))
+    suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(PollsURLTests))
+    suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(VoteTransactionTests))
+    suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(PollsLiveServerTests))
+    
+    # Run tests
+    runner = unittest.TextTestRunner(stream=captured_output, verbosity=2)
+    result = runner.run(suite)
+    
+    # Restore stdout
+    sys.stdout = old_stdout
+    
+    # Get output
+    test_output = captured_output.getvalue()
+    
+    # Format HTML response
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Test Results</title>
+        <style>
+            body {{ font-family: monospace; margin: 20px; background: #f5f5f5; }}
+            .container {{ background: white; padding: 20px; border-radius: 5px; }}
+            .passed {{ color: green; }}
+            .failed {{ color: red; }}
+            pre {{ background: #f0f0f0; padding: 10px; overflow: auto; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Django Test Results</h1>
+            <h2>Total Tests: {result.testsRun}</h2>
+            <p class="passed">✅ Passed: {result.testsRun - len(result.failures) - len(result.errors)}</p>
+            <p class="failed">❌ Failures: {len(result.failures)}</p>
+            <p class="failed">⚠️ Errors: {len(result.errors)}</p>
+            <h3>Test Output:</h3>
+            <pre>{test_output}</pre>
+            <br>
+            <a href="/polls/">← Back to Polls</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HttpResponse(html)
